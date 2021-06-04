@@ -2,21 +2,21 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 import pickle
+import re
+import string
 
-from utils import tokenize
 
+def tokenize(s):
+    regex = re.compile('[%s]' % re.escape(string.punctuation))
+    out = regex.sub(' ', s).split()
+    return out
 
 def fit_logistic(x, y):
     y = y.values
     model = LogisticRegression(C=4, dual=True)
     return model.fit(x, y)
 
-
-if _name_ == '_main_':
-
-    # data is from here https://www.kaggle.com/c/jigsaw-toxic-comment-classification-challenge
-    PATH = "data"
-
+def training_code(PATH = "archive/labeled_data.csv"):
     COMMENT = 'comment_text'
     label_cols = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
 
