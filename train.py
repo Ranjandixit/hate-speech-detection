@@ -4,6 +4,7 @@ from sklearn.linear_model import LogisticRegression
 import pickle
 import re
 import string
+from sklearn.model_selection import train_test_split
 
 
 def tokenize(s):
@@ -17,16 +18,14 @@ def fit_logistic(x, y):
     return model.fit(x, y)
 
 def training_code(PATH = "archive/labeled_data.csv"):
-    COMMENT = 'comment_text'
+    COMMENT = 'tweet'
     label_cols = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
 
     print("Load data...")
-    train = pd.read_csv('{}/train.csv'.format(PATH))
-    test = pd.read_csv('{}/test.csv'.format(PATH))
+    train = pd.read_csv(PATH)
 
     print("Fill empty with unknown...")
     train[COMMENT].fillna('unknown', inplace=True)
-    test[COMMENT].fillna('unknown', inplace=True)
 
     print("Train TFIDF vectorizer...")
     tfidfvectorizer = TfidfVectorizer(ngram_range=(1, 2), tokenizer=tokenize,
@@ -44,7 +43,12 @@ def training_code(PATH = "archive/labeled_data.csv"):
     for i, j in enumerate(label_cols):
         print("Fitting:", j)
         model = fit_logistic(x, train[j])
-
+    
         # joblib.dump(model, 'models/logistic_{}.pkl'.format(j))
         with open('models/logistic_{}.pkl'.format(j), 'wb') as lg_file:
             pickle.dump(model, lg_file)
+
+
+
+if __name__ == "__main__":
+    training_code()

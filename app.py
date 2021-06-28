@@ -1,4 +1,6 @@
+import re
 import os
+import string
 import streamlit as st
 from db import Message, Predictor
 from sqlalchemy.orm import sessionmaker
@@ -7,20 +9,40 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-
+from sklearn.linear_model import LogisticRegression
+import pickle
 
 
 st.title("Hate Speech Detection")
 
-def load_hate_model(path):
-    pass
+def tokenize(s):
+    regex = re.compile('[%s]' % re.escape(string.punctuation))
+    out = regex.sub(' ', s).split()
+    return out
+
+def fit_logistic(x, y):
+    y = y.values
+    model = LogisticRegression(C=4, dual=True)
+    return model.fit(x, y)
 
 @st.cache
 def load_dataset(path='archive/labeled_data.csv'):
     df = pd.read_csv(path)
-    df.drop(['Unnamed: 0','count','hate_speech','offensive_language','neither'],axis=1,inplace=True)
+    df.drop(['count','hate_speech','offensive_language','neither'],axis=1,inplace=True)
     return df
 
+def load_vectorizer():
+    with open(r"models\tfidf_vectorizer_train.pkl",'rb') as f:
+        return pickle.load(f)
+def load_hate_model():
+    with open(r"models\logistic_hate_speech.pkl",'rb') as f:
+        return pickle.load(f)
+def load_language_model():
+    with open(r"models\logistic_offensive_language.pkl",'rb') as f:
+        return pickle.load(f)
+def load_class_type():
+    with open(r"models\logistic_class.pkl",'rb') as f:
+        return pickle.load(f)
 
 def opendb():
     engine = create_engine('sqlite:///db.sqlite3') # connect
@@ -61,14 +83,59 @@ choice = st.sidebar.selectbox("select option",[
     'View Dataset',
     ])
 
+hate = load_hate_model()
+tfidf = load_vectorizer()
+language = load_language_model()
+classtype = load_class_type()
+
 if choice == 'About Project':
     # jo krna ho krna
     pass
 if choice == 'Detect HATE SPEECH':
-    pass
+    
+    st.success("models loaded")
+    uploader = st.text_input("person name")
+    comment = st.text_area('comment or tweet or post content')
+    if st.button("predict speech"):
+        if comment and uploader:
+            x = tfidf.transform(np.array([comment]))
+            h = hate.predict(x)[0]
+            ol = language.predict(x)[0]
+            c = classtype.predict(x)[0]
+            st.header("person:",uploader)
+            if c == 0:
+                st.title("The text is a hate speech")
+                st.info(f"hate speech rating:{h}")
+            elif c == 1:
+                st.title("The text is not hate speech but is offensive")
+                st.info(f"hate speech rating:{ol}")
+            else:
+                st.title("not a hate speech or offensive comment")
+            save_message(comment,name=uploader)
+            st.success("saved in database")
+        else:
+            st.error("please fill valid values")
 
 if choice == 'View History':
-    pass
+    db = opendb()
+    contents = db.query(Message).all()
+    db.close()
+    comment = st.selectbox("select a message",contents)
+    if st.button("predict"):
+        x = tfidf.transform(np.array([comment.text]))
+        h = hate.predict(x)[0]
+        ol = language.predict(x)[0]
+        c = classtype.predict(x)[0]
+        st.header(f"person:{comment.uploader}")
+        st.subheader(f"comment:{comment}")
+        if c == 0:
+            st.title("The text is a hate speech")
+            st.info(f"hate speech rating:{h}")
+        elif c == 1:
+            st.title("The text is not hate speech but is offensive")
+            st.info(f"hate speech rating:{ol}")
+        else:
+            st.title("not a hate speech or offensive comment")
 
 if choice == 'View Dataset':
     df = load_dataset()
@@ -84,8 +151,8 @@ if choice ==  'Manage data':
     db = opendb()
     results = db.query(Message).all()
     db.close()
-    msg = st.sidebar.radio('select image',results)
-    if msg and st.sidebar.button('delete msg'):
+    msg = st.radio('select image',results)
+    if msg and st.button('delete msg'):
         if delete_message(msg.id):
             st.success("message deleted")
         else:
